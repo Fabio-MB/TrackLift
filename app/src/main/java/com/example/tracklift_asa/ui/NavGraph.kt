@@ -127,7 +127,8 @@ fun AppNavGraph() {
                     exercicioViewModel = exercicioViewModel,
                     onExercicioClick = { exercicio ->
                         navController.navigate(Screen.DetalhesExercicio.createRoute(exercicio.id))
-                    }
+                    },
+                    onCreateExercicio = { navController.navigate(Screen.CrudExercicio.route) }
                 )
             }
         }
