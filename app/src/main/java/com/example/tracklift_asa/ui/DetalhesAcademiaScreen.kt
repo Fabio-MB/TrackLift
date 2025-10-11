@@ -97,7 +97,7 @@ fun DetalhesAcademiaScreen(
                     containerColor = Color(0xFFFFA500)
                 )
             ) {
-                Text("Iniciar Treino")
+                
             }
         }
     }

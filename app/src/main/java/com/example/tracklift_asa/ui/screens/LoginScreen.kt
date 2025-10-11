@@ -46,6 +46,12 @@ import com.example.tracklift_asa.navigation.Screen
 import com.example.tracklift_asa.ui.theme.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import android.app.DatePickerDialog
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.DateRange
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,14 +69,52 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
-    var age by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoginSelected by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var passwordError by remember { mutableStateOf("") }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    // Funções de validação
+    fun isValidPassword(password: String): String? {
+        return when {
+            password.length < 6 -> "A senha deve ter pelo menos 6 caracteres."
+            !password.any { it.isLetter() } -> "A senha deve conter pelo menos uma letra."
+            else -> null
+        }
+    }
+
+    fun calculateAge(birthDate: LocalDate): Int {
+        val today = LocalDate.now()
+        return ChronoUnit.YEARS.between(birthDate, today).toInt()
+    }
+
+    fun showDatePicker() {
+        val today = LocalDate.now()
+        val datePickerDialog = DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                selectedDate = LocalDate.of(year, month + 1, dayOfMonth)
+            },
+            today.year - 18, // Começar com 18 anos por padrão
+            11, // Dezembro (month é 0-based)
+            31 // Dia 31
+        )
+        
+        // Limitar a data máxima (não permitir datas futuras)
+        datePickerDialog.datePicker.maxDate = System.currentTimeMillis()
+        
+        // Limitar a data mínima (não permitir menos de 13 anos)
+        val minDate = today.minusYears(100)
+        datePickerDialog.datePicker.minDate = minDate.toEpochDay() * 24 * 60 * 60 * 1000
+        
+        datePickerDialog.show()
+    }
 
     // Animações
     val tabIndicatorOffset by animateFloatAsState(
@@ -136,6 +180,7 @@ fun LoginScreen(
                         onClick = { 
                             isLoginSelected = true
                             errorMessage = ""
+                            passwordError = ""
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -145,6 +190,7 @@ fun LoginScreen(
                         onClick = { 
                             isLoginSelected = false
                             errorMessage = ""
+                            passwordError = ""
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -199,22 +245,40 @@ fun LoginScreen(
                         )
                     )
                     
-                    ModernTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = "Senha",
-                        leadingIcon = Icons.Default.Lock,
-                        isPassword = true,
-                        passwordVisible = passwordVisible,
-                        onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = if (isLoginSelected) ImeAction.Done else ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = { keyboardController?.hide() }
+                    Column {
+                        ModernTextField(
+                            value = password,
+                            onValueChange = { 
+                                password = it
+                                // Validação em tempo real apenas para registro
+                                if (!isLoginSelected) {
+                                    passwordError = isValidPassword(it) ?: ""
+                                }
+                            },
+                            label = "Senha",
+                            leadingIcon = Icons.Default.Lock,
+                            isPassword = true,
+                            passwordVisible = passwordVisible,
+                            onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = if (isLoginSelected) ImeAction.Done else ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = { keyboardController?.hide() }
+                            )
                         )
-                    )
+                        
+                        // Mostrar erro de senha em tempo real
+                        if (!isLoginSelected && passwordError.isNotEmpty()) {
+                            Text(
+                                text = passwordError,
+                                color = TrackLiftError,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                            )
+                        }
+                    }
                     
                     AnimatedVisibility(
                         visible = !isLoginSelected,
@@ -250,13 +314,46 @@ fun LoginScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                                 
-                                ModernTextField(
-                                    value = age,
-                                    onValueChange = { age = it.filter { c -> c.isDigit() } },
-                                    label = "Idade",
-                                    keyboardType = KeyboardType.Number,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                // DatePicker Button
+                                Card(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { showDatePicker() }
+                                        .border(
+                                            width = 1.dp,
+                                            color = TrackLiftDivider,
+                                            shape = RoundedCornerShape(12.dp)
+                                        ),
+                                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Data de nascimento",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = if (selectedDate != null) TrackLiftOnSurface else TrackLiftOnSurfaceVariant
+                                            )
+                                            Text(
+                                                text = selectedDate?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "Selecione uma data",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = if (selectedDate != null) TrackLiftOnSurface else TrackLiftOnSurfaceVariant.copy(alpha = 0.6f),
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = "Selecionar data",
+                                            tint = TrackLiftPrimary
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -301,22 +398,42 @@ fun LoginScreen(
                                         }
                                     }
                                 } else {
+                                    // Validações específicas
+                                    if (name.isBlank() || email.isBlank() || password.isBlank() || height.isBlank() || selectedDate == null) {
+                                        isLoading = false
+                                        errorMessage = "Preencha todos os campos."
+                                        return@launch
+                                    }
+                                    
+                                    // Validar senha
+                                    val passwordError = isValidPassword(password)
+                                    if (passwordError != null) {
+                                        isLoading = false
+                                        errorMessage = passwordError
+                                        return@launch
+                                    }
+                                    
                                     if (password != confirmPassword) {
                                         isLoading = false
                                         errorMessage = "As senhas não coincidem."
                                         return@launch
                                     }
-                                    if (name.isBlank() || email.isBlank() || password.isBlank() || height.isBlank() || age.isBlank()) {
+                                    
+                                    // Calcular idade
+                                    val age = calculateAge(selectedDate!!)
+                                    
+                                    if (age < 13) {
                                         isLoading = false
-                                        errorMessage = "Preencha todos os campos."
+                                        errorMessage = "Você deve ter pelo menos 13 anos para se cadastrar."
                                         return@launch
                                     }
+                                    
                                     userViewModel.register(
                                         name = name,
                                         email = email,
                                         password = password,
                                         height = height.toIntOrNull() ?: 0,
-                                        age = age.toIntOrNull() ?: 0
+                                        age = age
                                     ) { success, errorMsg ->
                                         isLoading = false
                                         if (success) {
@@ -363,6 +480,7 @@ fun LoginScreen(
                 onClick = {
                     isLoginSelected = !isLoginSelected
                     errorMessage = ""
+                    passwordError = ""
                 }
             ) {
                 Text(

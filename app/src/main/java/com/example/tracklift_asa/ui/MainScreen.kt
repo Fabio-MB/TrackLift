@@ -151,9 +151,9 @@ fun MainScreen(
                 ) {
                     Text(
                         buildAnnotatedString {
-                            append("Olá, ")
+                            append("Olá ")
                             withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                append(currentUser?.name ?: "Usuário")
+                                append(currentUser?.name ?: "")
                             }
                             append("! 👋")
                         },

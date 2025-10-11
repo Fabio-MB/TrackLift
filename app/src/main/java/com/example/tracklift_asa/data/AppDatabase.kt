@@ -65,10 +65,7 @@ abstract class AppDatabase : RoomDatabase() {
             academiaDao.deleteAll()
             exercicioDao.deleteAll()
 
-            // Adicionar exercícios
-            exercicioDao.insert(Exercicio(nome = "Supino Reto", categoria = CategoriaExercicio.PEITORAL, idUsuario = 0, descricao = "Exercício para peitoral", imagem = "https://i.imgur.com/gallery/a4hYk2J.png"))
-            exercicioDao.insert(Exercicio(nome = "Agachamento Livre", categoria = CategoriaExercicio.PERNAS, idUsuario = 0, descricao = "Exercício para pernas", imagem = "https://i.imgur.com/gallery/a4hYk2J.png"))
-            exercicioDao.insert(Exercicio(nome = "Puxada Frontal", categoria = CategoriaExercicio.COSTAS, idUsuario = 0, descricao = "Exercício para costas", imagem = "https://i.imgur.com/gallery/a4hYk2J.png"))
+            // Exercícios agora são inseridos pelo ExercicioViewModel para cada usuário
         }
     }
 } 
