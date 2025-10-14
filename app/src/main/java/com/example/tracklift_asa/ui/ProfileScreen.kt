@@ -53,6 +53,26 @@ fun ProfileScreen(
                 ProfileInfoItem("Altura", "${user.height} cm")
                 ProfileInfoItem("Idade", "${user.age} anos")
             }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Button(
+                onClick = {
+                    userViewModel.logout {
+                        navController.navigate("login") {
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = true
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+            ) {
+                Text("Deslogar")
+            }
         }
     }
 }

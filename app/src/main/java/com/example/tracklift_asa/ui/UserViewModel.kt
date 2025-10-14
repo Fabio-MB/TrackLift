@@ -52,7 +52,11 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun logout() {
-        _currentUser.value = null
+    fun logout(onResult: () -> Unit) {
+        viewModelScope.launch {
+            auth.signOut()
+            _currentUser.value = null
+            onResult()
+        }
     }
 } 
