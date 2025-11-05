@@ -58,6 +58,20 @@ fun AppNavGraph() {
             ProfileScreen(navController = navController, userViewModel = userViewModel)
         }
 
+        composable(Screen.FotosProgresso.route) {
+            val currentUser = userViewModel.currentUser.collectAsState().value
+            currentUser?.let { user ->
+                val fotoProgressoViewModel: FotoProgressoViewModel = viewModel(
+                    factory = FotoProgressoViewModelFactory(application, user.id)
+                )
+                FotosProgressoScreen(
+                    onBack = { navController.popBackStack() },
+                    fotoProgressoViewModel = fotoProgressoViewModel,
+                    userId = user.id
+                )
+            }
+        }
+
         composable(Screen.Cronometro.route) {
             CronometroScreen(onBack = { navController.popBackStack() })
         }
@@ -185,10 +199,14 @@ fun AppNavGraph() {
                 val treinoViewModel: TreinoViewModel = viewModel(
                     factory = TreinoViewModelFactory(application, currentUser.id)
                 )
+                val exercicioViewModel: ExercicioViewModel = viewModel(
+                    factory = ExercicioViewModelFactory(application, currentUser.id)
+                )
                 CrudExercicioTreinoScreen(
                     navController = navController,
                     treinoId = treinoId,
-                    treinoViewModel = treinoViewModel
+                    treinoViewModel = treinoViewModel,
+                    exercicioViewModel = exercicioViewModel
                 )
             }
         }
@@ -221,6 +239,39 @@ fun AppNavGraph() {
                 )
                 ListaTreinosScreen(
                     navController = navController,
+                    treinoViewModel = treinoViewModel
+                )
+            }
+        }
+
+        composable(Screen.HistoricoTreinos.route) {
+            val currentUser = userViewModel.currentUser.collectAsState().value
+            currentUser?.let { user ->
+                val treinoViewModel: TreinoViewModel = viewModel(
+                    factory = TreinoViewModelFactory(application, user.id)
+                )
+                HistoricoTreinosScreen(
+                    navController = navController,
+                    treinoViewModel = treinoViewModel
+                )
+            }
+        }
+
+        composable(
+            route = Screen.DetalhesHistoricoTreino.route,
+            arguments = listOf(
+                navArgument("historicoId") { type = androidx.navigation.NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val historicoId = backStackEntry.arguments?.getInt("historicoId")
+            val currentUser = userViewModel.currentUser.collectAsState().value
+            if (historicoId != null && currentUser != null) {
+                val treinoViewModel: TreinoViewModel = viewModel(
+                    factory = TreinoViewModelFactory(application, currentUser.id)
+                )
+                DetalhesHistoricoTreinoScreen(
+                    navController = navController,
+                    historicoId = historicoId,
                     treinoViewModel = treinoViewModel
                 )
             }

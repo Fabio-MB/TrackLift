@@ -11,9 +11,13 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import android.content.Context
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ExercicioViewModel(application: Application, private val userId: Int) : AndroidViewModel(application) {
     private val dao = AppDatabase.getDatabase(application).exercicioDao()
     val exercicios: StateFlow<List<Exercicio>> = dao.getByUsuario(userId)
@@ -23,6 +27,36 @@ class ExercicioViewModel(application: Application, private val userId: Int) : An
                 Log.d("ExercicioViewModel", "Exercício: ${exercicio.nome} (idUsuario: ${exercicio.idUsuario})")
             }
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Estados para pesquisa
+    private val _queryBusca = kotlinx.coroutines.flow.MutableStateFlow("")
+    val queryBusca: kotlinx.coroutines.flow.StateFlow<String> = _queryBusca
+
+    private val _categoriaFiltro = kotlinx.coroutines.flow.MutableStateFlow<CategoriaExercicio?>(null)
+    val categoriaFiltro: kotlinx.coroutines.flow.StateFlow<CategoriaExercicio?> = _categoriaFiltro
+
+    // Exercícios filtrados combinando query e categoria
+    val exerciciosFiltrados: StateFlow<List<Exercicio>> = combine(
+        queryBusca,
+        categoriaFiltro
+    ) { query, categoria ->
+        when {
+            query.isNotBlank() && categoria != null -> {
+                dao.searchByNomeAndCategoria(userId, query, categoria)
+            }
+            query.isNotBlank() -> {
+                dao.searchByNome(userId, query)
+            }
+            categoria != null -> {
+                dao.getByUsuarioAndCategoria(userId, categoria)
+            }
+            else -> {
+                dao.getByUsuario(userId)
+            }
+        }
+    }
+        .flatMapLatest { it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -237,5 +271,18 @@ class ExercicioViewModel(application: Application, private val userId: Int) : An
             
             Log.d("ExercicioViewModel", "PopularExercicios concluído para userId: $userId")
         }
+    }
+
+    fun setQueryBusca(query: String) {
+        _queryBusca.value = query
+    }
+
+    fun setCategoriaFiltro(categoria: CategoriaExercicio?) {
+        _categoriaFiltro.value = categoria
+    }
+
+    fun limparFiltros() {
+        _queryBusca.value = ""
+        _categoriaFiltro.value = null
     }
 } 

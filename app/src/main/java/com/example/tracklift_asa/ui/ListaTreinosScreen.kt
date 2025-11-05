@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -118,6 +119,24 @@ fun ListaTreinosScreen(
                             color = TrackLiftOnPrimary.copy(alpha = 0.8f)
                         )
                     }
+                    
+                    // Botão de histórico
+                    IconButton(
+                        onClick = { navController.navigate(Screen.HistoricoTreinos.route) },
+                        modifier = Modifier
+                            .background(
+                                color = TrackLiftOnPrimary.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "Histórico",
+                            tint = TrackLiftOnPrimary
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
                     
                     // Botão de adicionar
                     FloatingActionButton(

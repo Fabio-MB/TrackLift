@@ -16,9 +16,12 @@ import kotlinx.coroutines.launch
         Exercicio::class,
         Treino::class,
         ExercicioTreino::class,
-        User::class
+        User::class,
+        FotoProgresso::class,
+        HistoricTreino::class,
+        SerieRealizada::class
     ],
-    version = 7,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -28,6 +31,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun treinoDao(): TreinoDao
     abstract fun exercicioTreinoDao(): ExercicioTreinoDao
     abstract fun userDao(): UserDao
+    abstract fun fotoProgressoDao(): FotoProgressoDao
+    abstract fun historicTreinoDao(): HistoricTreinoDao
+    abstract fun serieRealizadaDao(): SerieRealizadaDao
 
     companion object {
         @Volatile

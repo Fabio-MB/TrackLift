@@ -10,7 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SportsGymnastics
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.tracklift_asa.data.Exercicio
+import com.example.tracklift_asa.data.CategoriaExercicio
 import com.example.tracklift_asa.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,8 +42,19 @@ fun ListaExerciciosScreen(
     onExercicioClick: (Exercicio) -> Unit,
     onCreateExercicio: () -> Unit
 ) {
-    val exerciciosState = exercicioViewModel.exercicios.collectAsState()
+    val exerciciosState = exercicioViewModel.exerciciosFiltrados.collectAsState()
     val exercicios = exerciciosState.value
+    var queryBusca by remember { mutableStateOf("") }
+    var categoriaSelecionada by remember { mutableStateOf<CategoriaExercicio?>(null) }
+    
+    // Atualizar ViewModel quando a query ou categoria mudar
+    LaunchedEffect(queryBusca) {
+        exercicioViewModel.setQueryBusca(queryBusca)
+    }
+    
+    LaunchedEffect(categoriaSelecionada) {
+        exercicioViewModel.setCategoriaFiltro(categoriaSelecionada)
+    }
     
     Box(
         modifier = Modifier
@@ -98,7 +114,11 @@ fun ListaExerciciosScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${exercicios.size} exercícios cadastrados",
+                            text = if (queryBusca.isNotEmpty() || categoriaSelecionada != null) {
+                                "${exercicios.size} exercício(s) encontrado(s)"
+                            } else {
+                                "${exercicios.size} exercícios cadastrados"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = TrackLiftOnPrimary.copy(alpha = 0.8f)
                         )
@@ -119,6 +139,104 @@ fun ListaExerciciosScreen(
                     }
                 }
             }
+            
+            // Campo de busca
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = TrackLiftSurface),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                OutlinedTextField(
+                    value = queryBusca,
+                    onValueChange = { queryBusca = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Buscar exercício por nome...") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar",
+                            tint = TrackLiftOnSurfaceVariant
+                        )
+                    },
+                    trailingIcon = {
+                        if (queryBusca.isNotEmpty()) {
+                            IconButton(onClick = { queryBusca = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Limpar busca",
+                                    tint = TrackLiftOnSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = TrackLiftPrimary,
+                        unfocusedBorderColor = TrackLiftOnSurfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+            }
+            
+            // Filtros de categoria
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 0.dp),
+                colors = CardDefaults.cardColors(containerColor = TrackLiftSurface),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = "Filtrar por categoria:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TrackLiftOnSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Botão "Todos"
+                        FilterChip(
+                            selected = categoriaSelecionada == null,
+                            onClick = { categoriaSelecionada = null },
+                            label = { Text("Todos") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = TrackLiftPrimary,
+                                selectedLabelColor = TrackLiftOnPrimary
+                            )
+                        )
+                        
+                        // Botões para cada categoria
+                        CategoriaExercicio.values().forEach { categoria ->
+                            FilterChip(
+                                selected = categoriaSelecionada == categoria,
+                                onClick = { 
+                                    categoriaSelecionada = if (categoriaSelecionada == categoria) null else categoria
+                                },
+                                label = { Text(categoria.name) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = TrackLiftPrimary,
+                                    selectedLabelColor = TrackLiftOnPrimary
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
             
             // Lista de exercícios
             if (exercicios.isEmpty()) {
@@ -145,34 +263,64 @@ fun ListaExerciciosScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Nenhum exercício cadastrado",
+                            text = if (queryBusca.isNotEmpty() || categoriaSelecionada != null) {
+                                "Nenhum exercício encontrado"
+                            } else {
+                                "Nenhum exercício cadastrado"
+                            },
                             style = MaterialTheme.typography.headlineSmall,
                             color = TrackLiftOnSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "Comece adicionando seu primeiro exercício",
+                            text = if (queryBusca.isNotEmpty() || categoriaSelecionada != null) {
+                                "Tente ajustar sua busca ou filtro"
+                            } else {
+                                "Comece adicionando seu primeiro exercício"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = TrackLiftOnSurfaceVariant.copy(alpha = 0.7f),
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(top = 8.dp)
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Button(
-                            onClick = onCreateExercicio,
-                            colors = ButtonDefaults.buttonColors(containerColor = TrackLiftPrimary),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Adicionar Exercício",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                        if (queryBusca.isEmpty() && categoriaSelecionada == null) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Button(
+                                onClick = onCreateExercicio,
+                                colors = ButtonDefaults.buttonColors(containerColor = TrackLiftPrimary),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Adicionar Exercício",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            OutlinedButton(
+                                onClick = { 
+                                    queryBusca = ""
+                                    categoriaSelecionada = null
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Limpar Filtros",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
                     }
                 }

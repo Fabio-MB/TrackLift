@@ -8,10 +8,12 @@ import com.example.tracklift_asa.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-class TreinoViewModel(application: Application, userId: Int) : AndroidViewModel(application) {
+class TreinoViewModel(application: Application, private val userId: Int) : AndroidViewModel(application) {
     private val treinoDao = AppDatabase.getDatabase(application).treinoDao()
     private val exercicioTreinoDao = AppDatabase.getDatabase(application).exercicioTreinoDao()
     private val exercicioDao = AppDatabase.getDatabase(application).exercicioDao()
+    private val historicTreinoDao = AppDatabase.getDatabase(application).historicTreinoDao()
+    private val serieRealizadaDao = AppDatabase.getDatabase(application).serieRealizadaDao()
 
     init {
         Log.d("TreinoViewModel", "Inicializando TreinoViewModel para o userId: $userId")
@@ -139,5 +141,95 @@ class TreinoViewModel(application: Application, userId: Int) : AndroidViewModel(
             Log.e("TreinoViewModel", "Erro ao iniciar busca de treinos: ${e.message}", e)
             flow { emit(emptyList()) }
         }
+    }
+
+    val historicoTreinos: StateFlow<List<HistoricTreino>> = historicTreinoDao.getByUsuario(userId)
+        .onEach { historicos ->
+            Log.d("TreinoViewModel", "Histórico carregado: ${historicos.size} treinos")
+        }
+        .catch { e ->
+            Log.e("TreinoViewModel", "Erro ao carregar histórico: ${e.message}", e)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val historicoTreinosComTreino: StateFlow<List<HistoricTreinoComTreino>> = combine(
+        historicTreinoDao.getByUsuario(userId),
+        treinos
+    ) { historicos, treinosList ->
+        historicos.map { historico ->
+            val treino = treinosList.find { it.id == historico.idTreino }
+            HistoricTreinoComTreino(
+                id = historico.id,
+                idTreino = historico.idTreino,
+                idUsuario = historico.idUsuario,
+                dataRealizacao = historico.dataRealizacao,
+                duracaoMinutos = historico.duracaoMinutos,
+                treinoNome = treino?.nome,
+                treinoCategoria = treino?.categoria
+            )
+        }
+    }
+        .catch { e ->
+            Log.e("TreinoViewModel", "Erro ao carregar histórico com treinos: ${e.message}", e)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    suspend fun salvarTreinoRealizado(
+        idTreino: Int,
+        seriesRealizadas: List<SerieRealizada>,
+        duracaoMinutos: Int = 0
+    ) {
+        try {
+            val historicTreino = HistoricTreino(
+                idTreino = idTreino,
+                idUsuario = userId,
+                dataRealizacao = System.currentTimeMillis(),
+                duracaoMinutos = duracaoMinutos
+            )
+            val idHistorico = historicTreinoDao.insert(historicTreino)
+            
+            // Salvar séries realizadas
+            val seriesComHistorico = seriesRealizadas.map { serie ->
+                serie.copy(idHistoricoTreino = idHistorico.toInt())
+            }
+            serieRealizadaDao.insertAll(seriesComHistorico)
+            
+            Log.d("TreinoViewModel", "Treino realizado salvo: $idHistorico com ${seriesComHistorico.size} séries")
+        } catch (e: Exception) {
+            Log.e("TreinoViewModel", "Erro ao salvar treino realizado: ${e.message}", e)
+            throw e
+        }
+    }
+
+    fun getSeriesDoHistoricoTreino(idHistoricoTreino: Int): Flow<List<SerieRealizada>> {
+        return serieRealizadaDao.getByHistoricoTreino(idHistoricoTreino)
+            .catch { e ->
+                Log.e("TreinoViewModel", "Erro ao buscar séries: ${e.message}", e)
+                emit(emptyList())
+            }
+    }
+
+    fun getHistoricoByTreino(idTreino: Int): Flow<List<HistoricTreino>> {
+        return historicTreinoDao.getByTreino(idTreino)
+            .catch { e ->
+                Log.e("TreinoViewModel", "Erro ao buscar histórico do treino: ${e.message}", e)
+                emit(emptyList())
+            }
+    }
+
+    suspend fun getHistoricoComTreinoById(historicoId: Int): HistoricTreinoComTreino? {
+        val historico = historicTreinoDao.getById(historicoId) ?: return null
+        val treino = treinos.value.find { it.id == historico.idTreino }
+        return HistoricTreinoComTreino(
+            id = historico.id,
+            idTreino = historico.idTreino,
+            idUsuario = historico.idUsuario,
+            dataRealizacao = historico.dataRealizacao,
+            duracaoMinutos = historico.duracaoMinutos,
+            treinoNome = treino?.nome,
+            treinoCategoria = treino?.categoria
+        )
     }
 } 

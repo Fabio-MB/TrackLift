@@ -1,6 +1,8 @@
 package com.example.tracklift_asa.data
 
 import android.content.Context
+import com.example.tracklift_asa.data.SupabaseClient.SUPABASE_URL
+import io.ktor.client.HttpClient
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -12,6 +14,30 @@ data class UserProfile(
     val id: Int,
     val name: String,
     val email: String,
+    val height: Int,
+    val age: Int
+)
+
+@Serializable
+data class SignUpRequestData(val name: String)
+
+@Serializable
+data class SignUpRequestBody(
+    val email: String,
+    val password: String,
+    val data: SignUpRequestData
+)
+
+@Serializable
+data class SignInRequestBody(
+    val email: String,
+    val password: String
+)
+
+@Serializable
+data class ProfileRequestBody(
+    val id: String,
+    val name: String,
     val height: Int,
     val age: Int
 )
@@ -47,6 +73,9 @@ class SupabaseAuth(private val context: Context) {
     // Flag para controlar se o Supabase está disponível
     private var supabaseEnabled = true
 
+    private val authUrl = "${SUPABASE_URL}/auth/v1"
+    private val restUrl = "${SUPABASE_URL}/rest/v1"
+
     suspend fun signUp(
         name: String,
         email: String,
@@ -61,22 +90,26 @@ class SupabaseAuth(private val context: Context) {
                 // 1. Registrar no Supabase Auth
                 val authResponse = registerInSupabase(email, password, name)
                 
-                if (authResponse.user != null) {
-                    val supabaseUserId = authResponse.user!!.id
-                    println("✅ Usuário criado no Supabase Auth com ID: $supabaseUserId")
+                if (authResponse.user != null && authResponse.session != null) {
+                    val supabaseUser = authResponse.user
+                    val session = authResponse.session
+                    println("✅ Usuário criado no Supabase Auth com ID: ${supabaseUser.id}")
+
+                    // 2. Salvar perfil no banco de dados do Supabase
+                    saveProfileToSupabase(supabaseUser.id, name, height, age, session.access_token)
                     
-                    // 2. Salvar no banco local como backup e sincronização
+                    // 3. Salvar no banco local como backup e sincronização
                     val localUser = User(
-                        id = supabaseUserId.hashCode().let { if (it < 0) -it else it }.toString(),
+                        id = supabaseUser.id.hashCode().let { if (it < 0) -it else it }.toString(),
                         name = name,
                         email = email,
-                        password = password,
+                        password = password, // Considere não salvar a senha em texto claro
                         height = height,
                         age = age
                     )
                     userDao.insert(localUser)
                     
-                    // 3. Definir usuário atual
+                    // 4. Definir usuário atual
                     currentUser = UserProfile(
                         id = localUser.id.toIntOrNull() ?: System.currentTimeMillis().toInt(),
                         name = name,
@@ -85,10 +118,8 @@ class SupabaseAuth(private val context: Context) {
                         age = age
                     )
                     
-                    // 4. Salvar sessão se disponível
-                    if (authResponse.session != null) {
-                        currentSession = authResponse.session
-                    }
+                    // 5. Salvar sessão atual
+                    currentSession = session
                     
                     println("🎉 Usuário registrado com sucesso no Supabase e banco local!")
                     return@runCatching
@@ -207,23 +238,16 @@ class SupabaseAuth(private val context: Context) {
     // Métodos privados para implementação
     private suspend fun registerInSupabase(email: String, password: String, name: String): SupabaseAuthResponse {
         try {
-            println("🔍 URL do Supabase: ${SupabaseClient.authUrl}/signup")
-            println("🔍 Headers: ${SupabaseClient.defaultHeaders}")
+            println("🔍 URL do Supabase: $authUrl/signup")
             
-            val requestBody = mapOf(
-                "email" to email,
-                "password" to password,
-                "data" to mapOf("name" to name)
+            val requestBody = SignUpRequestBody(
+                email = email,
+                password = password,
+                data = SignUpRequestData(name = name)
             )
             println("🔍 Request Body: $requestBody")
             
-            val response = SupabaseClient.client.post("${SupabaseClient.authUrl}/signup") {
-                headers {
-                    SupabaseClient.defaultHeaders.forEach { (key, value) ->
-                        append(key, value)
-                        println("🔍 Header adicionado: $key = $value")
-                    }
-                }
+            val response = SupabaseClient.client.post("$authUrl/signup") {
                 setBody(requestBody)
             }
             
@@ -241,20 +265,12 @@ class SupabaseAuth(private val context: Context) {
 
     private suspend fun loginInSupabase(email: String, password: String): SupabaseAuthResponse {
         try {
-            println("🔍 URL do Supabase: ${SupabaseClient.authUrl}/token?grant_type=password")
+            println("🔍 URL do Supabase: $authUrl/token?grant_type=password")
             
-            val requestBody = mapOf(
-                "email" to email,
-                "password" to password
-            )
+            val requestBody = SignInRequestBody(email, password)
             println("🔍 Request Body: $requestBody")
             
-            val response = SupabaseClient.client.post("${SupabaseClient.authUrl}/token?grant_type=password") {
-                headers {
-                    SupabaseClient.defaultHeaders.forEach { (key, value) ->
-                        append(key, value)
-                    }
-                }
+            val response = SupabaseClient.client.post("$authUrl/token?grant_type=password") {
                 setBody(requestBody)
             }
             
@@ -273,12 +289,9 @@ class SupabaseAuth(private val context: Context) {
     private suspend fun logoutFromSupabase() {
         currentSession?.let { session ->
             try {
-                println("🔍 URL do Supabase: ${SupabaseClient.authUrl}/logout")
-                SupabaseClient.client.post("${SupabaseClient.authUrl}/logout") {
+                println("🔍 URL do Supabase: $authUrl/logout")
+                SupabaseClient.client.post("$authUrl/logout") {
                     headers {
-                        SupabaseClient.defaultHeaders.forEach { (key, value) ->
-                            append(key, value)
-                        }
                         append("Authorization", "Bearer ${session.access_token}")
                     }
                 }
@@ -293,12 +306,9 @@ class SupabaseAuth(private val context: Context) {
     private suspend fun validateSupabaseSession(): UserProfile? {
         currentSession?.let { session ->
             try {
-                println("🔍 URL do Supabase: ${SupabaseClient.authUrl}/user")
-                val response = SupabaseClient.client.get("${SupabaseClient.authUrl}/user") {
+                println("🔍 URL do Supabase: $authUrl/user")
+                val response = SupabaseClient.client.get("$authUrl/user") {
                     headers {
-                        SupabaseClient.defaultHeaders.forEach { (key, value) ->
-                            append(key, value)
-                        }
                         append("Authorization", "Bearer ${session.access_token}")
                     }
                 }
@@ -321,6 +331,37 @@ class SupabaseAuth(private val context: Context) {
             }
         }
         return null
+    }
+
+    private suspend fun saveProfileToSupabase(id: String, name: String, height: Int, age: Int, accessToken: String) {
+        try {
+            println("💾 Salvando perfil no banco de dados Supabase...")
+            val profileData = ProfileRequestBody(
+                id = id,
+                name = name,
+                height = height,
+                age = age
+            )
+
+            val response = SupabaseClient.client.post("$restUrl/profiles") {
+                headers {
+                    append("Authorization", "Bearer $accessToken")
+                    append("Prefer", "return=minimal")
+                }
+                setBody(profileData)
+            }
+
+            if (response.status.isSuccess()) {
+                println("✅ Perfil salvo com sucesso no Supabase DB.")
+            } else {
+                val errorBody = response.body<String>()
+                println("❌ Erro ao salvar perfil no Supabase DB: ${response.status} - $errorBody")
+            }
+
+        } catch (e: Exception) {
+            println("❌ Erro crítico ao salvar perfil no Supabase: ${e.message}")
+            e.printStackTrace()
+        }
     }
 
     private suspend fun registerInLocalDatabase(name: String, email: String, password: String, height: Int, age: Int) {

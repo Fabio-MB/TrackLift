@@ -14,6 +14,15 @@ interface ExercicioDao {
     @Query("SELECT * FROM exercicios WHERE categoria = :categoria")
     fun getByCategoria(categoria: CategoriaExercicio): Flow<List<Exercicio>>
 
+    @Query("SELECT * FROM exercicios WHERE id_usuario = :idUsuario AND nome LIKE '%' || :query || '%'")
+    fun searchByNome(idUsuario: Int, query: String): Flow<List<Exercicio>>
+
+    @Query("SELECT * FROM exercicios WHERE id_usuario = :idUsuario AND categoria = :categoria")
+    fun getByUsuarioAndCategoria(idUsuario: Int, categoria: CategoriaExercicio): Flow<List<Exercicio>>
+
+    @Query("SELECT * FROM exercicios WHERE id_usuario = :idUsuario AND nome LIKE '%' || :query || '%' AND categoria = :categoria")
+    fun searchByNomeAndCategoria(idUsuario: Int, query: String, categoria: CategoriaExercicio): Flow<List<Exercicio>>
+
     @Insert
     suspend fun insert(exercicio: Exercicio)
 
